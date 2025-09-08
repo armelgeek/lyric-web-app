@@ -1,5 +1,5 @@
 import React from 'react';
-import { FieldValues, useController, UseControllerProps } from 'react-hook-form';
+import { FieldValues, useController, UseControllerProps, PathValue, Path } from 'react-hook-form';
 
 import {
   FormControl,
@@ -24,7 +24,7 @@ export function ControllerCustomSelect<T extends FieldValues>({
   description,
   options,
   className,
-  defaultValue = [],
+  defaultValue = [] as PathValue<T, Path<T>>,
 }: ControllerCustomSelectProps<T>) {
   const {
     field,

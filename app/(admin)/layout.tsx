@@ -11,9 +11,15 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
   const session = await auth.api.getSession({ headers: await headers() });
   const cookieStore = await cookies();
   const defaultOpen = cookieStore.get('sidebar:state')?.value === 'true';
+  
+  if (!session) {
+    // Redirect to login or show unauthorized
+    return <div>Unauthorized</div>;
+  }
+  
   return (
     <SidebarProvider defaultOpen={defaultOpen}>
-      <AppSidebar session={session}/>
+      <AppSidebar session={session.session}/>
       <SidebarInset>
       <Header />
       <div className='flex flex-col flex-1 space-y-4 px-4 py-4'>
