@@ -2,11 +2,11 @@ import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 
 import { db } from '@/drizzle/db';
-import { redis } from '@/shared/lib/config/redis';
 import { sendImprovedChangeEmailVerification, sendImprovedResetPasswordEmail, sendWelcomeEmail } from '@/shared/lib/config/email';
 import { username } from 'better-auth/plugins/username';
 import { anonymous } from 'better-auth/plugins/anonymous';
 import { nextCookies } from 'better-auth/next-js';
+
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: 'pg',
@@ -15,19 +15,20 @@ export const auth = betterAuth({
   advanced: {
     generateId: false,
   },
-  secondaryStorage: {
-    get: async (key) => {
-      const value = await redis.get(key);
-      return value ? value : null;
-    },
-    set: async (key, value, ttl) => {
-      if (ttl) await redis.set(key, value, { EX: ttl });
-      else await redis.set(key, value);
-    },
-    delete: async (key) => {
-      await redis.del(key);
-    },
-  },
+  // Temporarily disabled Redis secondary storage to avoid connection issues
+  // secondaryStorage: {
+  //   get: async (key) => {
+  //     const value = await redis.get(key);
+  //     return value ? value : null;
+  //   },
+  //   set: async (key, value, ttl) => {
+  //     if (ttl) await redis.set(key, value, { EX: ttl });
+  //     else await redis.set(key, value);
+  //   },
+  //   delete: async (key) => {
+  //     await redis.del(key);
+  //   },
+  // },
   session: {
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge: 60 * 60 * 24, // 1 day (every 1 day the session expiration is updated)

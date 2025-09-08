@@ -1,5 +1,5 @@
-import { LyricsHomePage } from '@/features/songs/components/organisms/lyrics-home-page';
+import StaticLyricsHome from '@/features/songs/components/organisms/static-lyrics-home';
 
 export default function Home() {
-  return <LyricsHomePage />;
+  return <StaticLyricsHome />;
 }
