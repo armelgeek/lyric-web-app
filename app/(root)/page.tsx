@@ -1,8 +1,5 @@
-import Hero from '@/shared/components/atoms/hero';
+import StaticLyricsHome from '@/features/songs/components/organisms/static-lyrics-home';
+
 export default function Home() {
-  return (
-    <>
-      <Hero />
-    </>
-  );
+  return <StaticLyricsHome />;
 }

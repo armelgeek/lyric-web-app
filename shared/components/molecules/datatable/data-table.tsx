@@ -21,7 +21,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 
-import { DataTableToolbar } from '../../../../features/products/components/organisms/crud/data-table-toolbar';
+import { DataTableToolbar } from '@/shared/components/molecules/datatable/data-table-toolbar';
 import { useState, useCallback } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
