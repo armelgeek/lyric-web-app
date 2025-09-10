@@ -1,19 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
-import { Search, Filter, Music, User, Calendar } from 'lucide-react';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Search, Filter, Music, User, Disc } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { SongWithUser } from '@/features/songs/config/song.types';
 import { useSongsSearch } from '@/features/songs/hooks/use-songs';
+import { SimpleSongList } from '../molecules/simple-song-list';
 import Link from 'next/link';
 
 interface SearchPageContentProps {
-  searchParams: { q?: string; artist?: string; genre?: string; page?: string };
+  searchParams: { q?: string; artist?: string; genre?: string; page?: string; type?: string };
 }
 
 const genres = [
@@ -26,9 +26,10 @@ export default function SearchPageContent({ searchParams }: SearchPageContentPro
   const [searchQuery, setSearchQuery] = useState(searchParams.q || '');
   const [artist, setArtist] = useState(searchParams.artist || '');
   const [genre, setGenre] = useState(searchParams.genre || '');
+  const [searchType, setSearchType] = useState(searchParams.type || 'songs');
   const [showFilters, setShowFilters] = useState(false);
 
-  const { data: searchResults, isLoading, error } = useSongsSearch({
+  const { data: songResults, isLoading, error } = useSongsSearch({
     query: searchQuery || undefined,
     artist: artist || undefined,
     genre: (genre as any) || undefined,
@@ -43,7 +44,8 @@ export default function SearchPageContent({ searchParams }: SearchPageContentPro
     if (searchQuery) params.set('q', searchQuery);
     if (artist) params.set('artist', artist);
     if (genre) params.set('genre', genre);
-    params.set('page', '1'); // Reset to first page on new search
+    if (searchType !== 'songs') params.set('type', searchType);
+    params.set('page', '1');
     
     router.push(`/search?${params.toString()}`);
   };
@@ -52,17 +54,27 @@ export default function SearchPageContent({ searchParams }: SearchPageContentPro
     setSearchQuery('');
     setArtist('');
     setGenre('');
+    setSearchType('songs');
     router.push('/search');
   };
 
-  const handlePageChange = (newPage: number) => {
-    const params = new URLSearchParams();
-    if (searchQuery) params.set('q', searchQuery);
-    if (artist) params.set('artist', artist);
-    if (genre) params.set('genre', genre);
-    params.set('page', newPage.toString());
-    
-    router.push(`/search?${params.toString()}`);
+  const transformSongs = () => {
+    if (!songResults?.data) return [];
+    return songResults.data.map(song => ({
+      id: song.id,
+      title: song.title,
+      artist: song.artist,
+      album: song.album || undefined,
+      genre: song.genre || undefined,
+      views: song.views,
+      likes: song.likes,
+      annotationsCount: song.annotationsCount,
+      slug: song.slug,
+      spotifyUrl: song.spotifyUrl || undefined,
+      youtubeUrl: song.youtubeUrl || undefined,
+      appleMusicUrl: song.appleMusicUrl || undefined,
+      createdAt: song.createdAt.toISOString(),
+    }));
   };
 
   return (
@@ -71,8 +83,8 @@ export default function SearchPageContent({ searchParams }: SearchPageContentPro
         {/* Search Header */}
         <div className="space-y-6 mb-8">
           <div className="text-center space-y-2">
-            <h1 className="text-3xl font-bold tracking-tight">Search Songs</h1>
-            <p className="text-muted-foreground">Find lyrics, artists, and discover new music</p>
+            <h1 className="text-3xl font-bold tracking-tight">Search</h1>
+            <p className="text-muted-foreground">Find songs, artists, albums, and discover new music</p>
           </div>
 
           {/* Search Bar */}
@@ -82,7 +94,7 @@ export default function SearchPageContent({ searchParams }: SearchPageContentPro
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
                 <Input
                   type="text"
-                  placeholder="Search songs, artists, or lyrics..."
+                  placeholder="Search songs, artists, albums, or lyrics..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
@@ -140,119 +152,83 @@ export default function SearchPageContent({ searchParams }: SearchPageContentPro
           </div>
         </div>
 
-        {/* Results */}
-        <div className="space-y-6">
-          {isLoading && (
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-              <p className="mt-2 text-muted-foreground">Searching...</p>
-            </div>
-          )}
+        {/* Search Results */}
+        <Tabs value={searchType} onValueChange={setSearchType} className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="songs" className="flex items-center gap-2">
+              <Music className="w-4 h-4" />
+              Songs
+            </TabsTrigger>
+            <TabsTrigger value="artists" className="flex items-center gap-2">
+              <User className="w-4 h-4" />
+              Artists
+            </TabsTrigger>
+            <TabsTrigger value="albums" className="flex items-center gap-2">
+              <Disc className="w-4 h-4" />
+              Albums
+            </TabsTrigger>
+          </TabsList>
 
-          {error && (
-            <div className="text-center py-8">
-              <p className="text-destructive">Error loading search results. Please try again.</p>
-            </div>
-          )}
-
-          {searchResults && (
-            <>
-              {/* Results Header */}
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold">
-                  {searchResults.pagination.total} songs found
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  Page {searchResults.pagination.page} of {searchResults.pagination.totalPages}
-                </p>
+          {/* Songs Tab */}
+          <TabsContent value="songs" className="space-y-6">
+            {isLoading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                <p className="mt-2 text-muted-foreground">Searching songs...</p>
               </div>
+            ) : error ? (
+              <div className="text-center py-8">
+                <p className="text-destructive">Error loading songs. Please try again.</p>
+              </div>
+            ) : songResults ? (
+              <>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-semibold">
+                    {songResults.pagination.total} songs found
+                  </h2>
+                </div>
 
-              {/* Results Grid */}
-              {searchResults.data.length === 0 ? (
-                <div className="text-center py-12">
-                  <Music className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-medium mb-2">No songs found</h3>
-                  <p className="text-muted-foreground">Try adjusting your search terms or filters</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {searchResults.data.map((song) => (
-                    <SongCard key={song.id} song={song} />
-                  ))}
-                </div>
-              )}
+                <SimpleSongList 
+                  songs={transformSongs()} 
+                  emptyMessage="No songs found matching your search."
+                />
+              </>
+            ) : (
+              <div className="text-center py-12">
+                <Music className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium mb-2">Search for songs</h3>
+                <p className="text-muted-foreground">Enter a search term to find songs, lyrics, or artists</p>
+              </div>
+            )}
+          </TabsContent>
 
-              {/* Pagination */}
-              {searchResults.pagination.totalPages > 1 && (
-                <div className="flex justify-center gap-2">
-                  <Button
-                    variant="outline"
-                    disabled={!searchResults.pagination.hasPrev}
-                    onClick={() => handlePageChange(searchResults.pagination.page - 1)}
-                  >
-                    Previous
-                  </Button>
-                  <span className="flex items-center px-4 py-2 text-sm">
-                    {searchResults.pagination.page} of {searchResults.pagination.totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    disabled={!searchResults.pagination.hasNext}
-                    onClick={() => handlePageChange(searchResults.pagination.page + 1)}
-                  >
-                    Next
-                  </Button>
-                </div>
-              )}
-            </>
-          )}
-        </div>
+          {/* Artists Tab */}
+          <TabsContent value="artists" className="space-y-6">
+            <div className="text-center py-12">
+              <User className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium mb-2">Artist search coming soon</h3>
+              <p className="text-muted-foreground">
+                <Link href="/artists" className="text-primary hover:underline">
+                  Browse all artists
+                </Link>
+              </p>
+            </div>
+          </TabsContent>
+
+          {/* Albums Tab */}
+          <TabsContent value="albums" className="space-y-6">
+            <div className="text-center py-12">
+              <Disc className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium mb-2">Album search coming soon</h3>
+              <p className="text-muted-foreground">
+                <Link href="/albums" className="text-primary hover:underline">
+                  Browse all albums
+                </Link>
+              </p>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
-  );
-}
-
-function SongCard({ song }: { song: SongWithUser }) {
-  return (
-    <Link href={`/songs/${song.slug}`} className="block">
-      <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg line-clamp-1">{song.title}</CardTitle>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <User className="w-3 h-3" />
-            <span>{song.artist}</span>
-          </div>
-          {song.album && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Calendar className="w-3 h-3" />
-              <span>{song.album}</span>
-            </div>
-          )}
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {song.genre && (
-              <Badge variant="secondary" className="text-xs">
-                {song.genre.charAt(0).toUpperCase() + song.genre.slice(1)}
-              </Badge>
-            )}
-            
-            <p className="text-sm text-muted-foreground line-clamp-3">
-              {song.lyrics.substring(0, 120)}...
-            </p>
-            
-            <div className="flex items-center gap-4 text-xs text-muted-foreground">
-              <span>{song.views.toLocaleString()} views</span>
-              <span>{song.likes.toLocaleString()} likes</span>
-              <span>{song.commentsCount} comments</span>
-            </div>
-            
-            <div className="text-xs text-muted-foreground">
-              by {song.submittedByUser.name}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </Link>
   );
 }

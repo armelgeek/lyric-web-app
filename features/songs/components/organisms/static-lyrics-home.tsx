@@ -162,6 +162,53 @@ export default function StaticLyricsHome() {
           )}
         </section>
 
+        {/* Quick Navigation */}
+        <section className="space-y-6">
+          <h2 className="text-3xl font-bold tracking-tight text-center">
+            Explore the Platform
+          </h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Search className="w-5 h-5" />
+                  Browse Artists
+                </CardTitle>
+                <CardDescription>
+                  Discover artists and explore their complete discographies with lyrics and annotations
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Link href="/artists">
+                  <Button className="w-full">
+                    View All Artists
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+            
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5" />
+                  Browse Albums
+                </CardTitle>
+                <CardDescription>
+                  Explore complete album track listings with lyrics, from classics to the latest releases
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Link href="/albums">
+                  <Button className="w-full">
+                    View All Albums
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+
         {/* Features */}
         <section className="space-y-6">
           <h2 className="text-3xl font-bold tracking-tight text-center">
