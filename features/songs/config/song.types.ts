@@ -148,7 +148,7 @@ export interface SongWithUser extends Song {
 }
 
 export interface SongWithDetails extends SongWithUser {
-  annotations: Annotation[];
+  annotations: AnnotationWithUser[];
   comments: Comment[];
   isLikedByUser?: boolean;
   isFavoriteByUser?: boolean;

@@ -1,15 +1,18 @@
 'use client';
 
 import { useState } from 'react';
-import { Heart, MessageSquare, Share2, Flag, Eye, Plus, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { Heart, MessageSquare, Share2, Flag, Eye, Plus, ThumbsUp, ThumbsDown, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useSong } from '@/features/songs/hooks/use-songs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useSong, useLikeSong, useFavoriteSong } from '@/features/songs/hooks/use-songs';
+import { useCreateAnnotation, useVoteAnnotation } from '@/features/songs/hooks/use-annotations';
 import { formatDistanceToNow } from 'date-fns';
+import { toast } from 'sonner';
 import Link from 'next/link';
 
 interface SongDetailContentProps {
@@ -20,7 +23,14 @@ export default function SongDetailContent({ slug }: SongDetailContentProps) {
   const { data: song, isLoading, error } = useSong(slug);
   const [newComment, setNewComment] = useState('');
   const [selectedText, setSelectedText] = useState('');
-  const [showAnnotationForm, setShowAnnotationForm] = useState(false);
+  const [selectionRange, setSelectionRange] = useState<{ start: number; end: number } | null>(null);
+  const [showAnnotationDialog, setShowAnnotationDialog] = useState(false);
+  const [annotationText, setAnnotationText] = useState('');
+
+  const likeMutation = useLikeSong();
+  const favoriteMutation = useFavoriteSong();
+  const createAnnotationMutation = useCreateAnnotation();
+  const voteAnnotationMutation = useVoteAnnotation();
 
   if (isLoading) {
     return (
@@ -53,10 +63,87 @@ export default function SongDetailContent({ slug }: SongDetailContentProps) {
   }
 
   const handleTextSelection = () => {
-    const selection = window.getSelection()?.toString();
-    if (selection) {
-      setSelectedText(selection);
-      setShowAnnotationForm(true);
+    const selection = window.getSelection();
+    if (selection && selection.toString().trim()) {
+      const selectedText = selection.toString();
+      const range = selection.getRangeAt(0);
+      
+      // Calculate position in the full lyrics text
+      const lyricsElement = document.getElementById('lyrics-text');
+      if (lyricsElement) {
+        const startOffset = getTextOffset(lyricsElement, range.startContainer, range.startOffset);
+        const endOffset = getTextOffset(lyricsElement, range.endContainer, range.endOffset);
+        
+        setSelectedText(selectedText);
+        setSelectionRange({ start: startOffset, end: endOffset });
+        setShowAnnotationDialog(true);
+      }
+    }
+  };
+
+  const getTextOffset = (root: Node, node: Node, offset: number): number => {
+    let walker = document.createTreeWalker(
+      root,
+      NodeFilter.SHOW_TEXT,
+      null
+    );
+    
+    let currentOffset = 0;
+    let currentNode;
+    
+    while (currentNode = walker.nextNode()) {
+      if (currentNode === node) {
+        return currentOffset + offset;
+      }
+      currentOffset += currentNode.textContent?.length || 0;
+    }
+    
+    return currentOffset;
+  };
+
+  const handleCreateAnnotation = async () => {
+    if (!selectionRange || !selectedText || !annotationText.trim()) return;
+
+    try {
+      await createAnnotationMutation.mutateAsync({
+        songId: song.id,
+        highlightedText: selectedText,
+        startPosition: selectionRange.start,
+        endPosition: selectionRange.end,
+        explanation: annotationText,
+      });
+      
+      setShowAnnotationDialog(false);
+      setSelectedText('');
+      setSelectionRange(null);
+      setAnnotationText('');
+      toast.success('Annotation added successfully!');
+    } catch (error) {
+      toast.error('Failed to create annotation');
+    }
+  };
+
+  const handleLike = async () => {
+    try {
+      await likeMutation.mutateAsync(song.id);
+    } catch (error) {
+      toast.error('Failed to like song');
+    }
+  };
+
+  const handleFavorite = async () => {
+    try {
+      await favoriteMutation.mutateAsync(song.id);
+    } catch (error) {
+      toast.error('Failed to favorite song');
+    }
+  };
+
+  const handleVoteAnnotation = async (annotationId: string, isUpvote: boolean) => {
+    try {
+      await voteAnnotationMutation.mutateAsync({ annotationId, isUpvote });
+    } catch (error) {
+      toast.error('Failed to vote on annotation');
     }
   };
 
@@ -93,7 +180,7 @@ export default function SongDetailContent({ slug }: SongDetailContentProps) {
                     {song.views.toLocaleString()} views
                   </div>
                   <div className="flex items-center gap-1">
-                    <Heart className="w-4 h-4" />
+                    <Heart className={`w-4 h-4 ${song.isLikedByUser ? 'fill-red-500 text-red-500' : ''}`} />
                     {song.likes.toLocaleString()} likes
                   </div>
                   <div className="flex items-center gap-1">
@@ -104,13 +191,25 @@ export default function SongDetailContent({ slug }: SongDetailContentProps) {
               </div>
 
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm">
-                  <Heart className="w-4 h-4 mr-1" />
-                  Like
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleLike}
+                  disabled={likeMutation.isPending}
+                  className={song.isLikedByUser ? 'bg-red-50 border-red-200' : ''}
+                >
+                  <Heart className={`w-4 h-4 mr-1 ${song.isLikedByUser ? 'fill-red-500 text-red-500' : ''}`} />
+                  {song.isLikedByUser ? 'Liked' : 'Like'}
                 </Button>
-                <Button variant="outline" size="sm">
-                  <Plus className="w-4 h-4 mr-1" />
-                  Favorite
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleFavorite}
+                  disabled={favoriteMutation.isPending}
+                  className={song.isFavoriteByUser ? 'bg-yellow-50 border-yellow-200' : ''}
+                >
+                  <Plus className={`w-4 h-4 mr-1 ${song.isFavoriteByUser ? 'fill-yellow-500 text-yellow-500' : ''}`} />
+                  {song.isFavoriteByUser ? 'Favorited' : 'Favorite'}
                 </Button>
                 <Button variant="outline" size="sm">
                   <Share2 className="w-4 h-4 mr-1" />
@@ -135,6 +234,7 @@ export default function SongDetailContent({ slug }: SongDetailContentProps) {
               </CardHeader>
               <CardContent>
                 <div 
+                  id="lyrics-text"
                   className="whitespace-pre-line text-lg leading-relaxed cursor-text select-text"
                   onMouseUp={handleTextSelection}
                 >
@@ -142,30 +242,6 @@ export default function SongDetailContent({ slug }: SongDetailContentProps) {
                 </div>
               </CardContent>
             </Card>
-
-            {/* Annotation Form */}
-            {showAnnotationForm && selectedText && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Add Annotation</CardTitle>
-                  <p className="text-sm text-muted-foreground">
-                    Selected text: &quot;{selectedText}&quot;
-                  </p>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <Textarea
-                    placeholder="Explain the meaning of this lyric..."
-                    rows={3}
-                  />
-                  <div className="flex gap-2">
-                    <Button size="sm">Submit Annotation</Button>
-                    <Button variant="outline" size="sm" onClick={() => setShowAnnotationForm(false)}>
-                      Cancel
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
 
             {/* Annotations */}
             {song.annotations.length > 0 && (
@@ -182,15 +258,27 @@ export default function SongDetailContent({ slug }: SongDetailContentProps) {
                       <p className="text-sm">{annotation.explanation}</p>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                          <span>by User {annotation.userId}</span>
+                          <span>by {annotation.user.name}</span>
                           <span>{formatDistanceToNow(annotation.createdAt)} ago</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Button variant="ghost" size="sm">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handleVoteAnnotation(annotation.id, true)}
+                            disabled={voteAnnotationMutation.isPending}
+                            className={annotation.isUpvotedByUser ? 'bg-green-50 text-green-600' : ''}
+                          >
                             <ThumbsUp className="w-3 h-3 mr-1" />
                             {annotation.upvotes}
                           </Button>
-                          <Button variant="ghost" size="sm">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handleVoteAnnotation(annotation.id, false)}
+                            disabled={voteAnnotationMutation.isPending}
+                            className={annotation.isDownvotedByUser ? 'bg-red-50 text-red-600' : ''}
+                          >
                             <ThumbsDown className="w-3 h-3 mr-1" />
                             {annotation.downvotes}
                           </Button>
@@ -322,6 +410,47 @@ export default function SongDetailContent({ slug }: SongDetailContentProps) {
           </div>
         </div>
       </div>
+
+      {/* Annotation Dialog */}
+      <Dialog open={showAnnotationDialog} onOpenChange={setShowAnnotationDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Annotation</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Selected text:</label>
+              <div className="p-2 bg-muted rounded text-sm mt-1">
+                &quot;{selectedText}&quot;
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Explanation:</label>
+              <Textarea
+                placeholder="Explain the meaning of this lyric..."
+                value={annotationText}
+                onChange={(e) => setAnnotationText(e.target.value)}
+                rows={4}
+                className="mt-1"
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowAnnotationDialog(false)}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleCreateAnnotation}
+                disabled={createAnnotationMutation.isPending || !annotationText.trim()}
+              >
+                {createAnnotationMutation.isPending ? 'Adding...' : 'Add Annotation'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
