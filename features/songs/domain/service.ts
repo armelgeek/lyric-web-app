@@ -8,7 +8,7 @@ import {
   userProfiles,
   users 
 } from '@/drizzle/schema';
-import { eq, desc, asc, and, like, or, count, sql } from 'drizzle-orm';
+import { eq, and, or, like, desc, asc, count, sql } from 'drizzle-orm';
 import { 
   Song, 
   SongWithUser, 
@@ -19,6 +19,7 @@ import {
   PaginatedResponse 
 } from '../config/song.types';
 import slugify from 'slugify';
+import { AnnotationService } from './annotation-service';
 
 export class SongService {
   // Create a new song
@@ -76,8 +77,8 @@ export class SongService {
 
     if (!song) return null;
 
-    // Get annotations for this song
-    const songAnnotations = await db
+    // Get annotations for this song (basic)
+    const basicAnnotations = await db
       .select({
         id: annotations.id,
         songId: annotations.songId,
@@ -141,9 +142,20 @@ export class SongService {
       await this.incrementViews(id);
     }
 
+    if (!song || !song.submittedByUser) return null;
+
+    // Use annotation service to get full annotations with user data
+    const annotationService = new AnnotationService();
+    const fullAnnotations = await annotationService.getSongAnnotations(id, userId);
+
     return {
       ...song,
-      annotations: songAnnotations,
+      submittedByUser: {
+        id: song.submittedByUser.id,
+        name: song.submittedByUser.name,
+        image: song.submittedByUser.image || undefined,
+      },
+      annotations: fullAnnotations,
       comments: songComments,
       isLikedByUser,
       isFavoriteByUser,
@@ -168,30 +180,47 @@ export class SongService {
     const { query, artist, genre, sortBy, sortOrder, page, limit } = filters;
     const offset = (page - 1) * limit;
 
-    let whereConditions = eq(songs.isApproved, true);
+    const conditions = [eq(songs.isApproved, true)];
 
     if (query) {
-      whereConditions = and(
-        whereConditions,
-        or(
-          like(songs.title, `%${query}%`),
-          like(songs.artist, `%${query}%`),
-          like(songs.lyrics, `%${query}%`)
-        )
+      const searchCondition = or(
+        like(songs.title, `%${query}%`),
+        like(songs.artist, `%${query}%`),
+        like(songs.lyrics, `%${query}%`)
       );
+      if (searchCondition) {
+        conditions.push(searchCondition);
+      }
     }
 
     if (artist) {
-      whereConditions = and(whereConditions, like(songs.artist, `%${artist}%`));
+      conditions.push(like(songs.artist, `%${artist}%`));
     }
 
     if (genre) {
-      whereConditions = and(whereConditions, eq(songs.genre, genre));
+      conditions.push(eq(songs.genre, genre));
     }
 
-    // Determine sort order
-    const orderByColumn = songs[sortBy as keyof typeof songs];
-    const orderBy = sortOrder === 'asc' ? asc(orderByColumn) : desc(orderByColumn);
+    const whereConditions = and(...conditions);
+
+    // Determine sort order - handle sortBy more safely
+    let orderByClause;
+    switch (sortBy) {
+      case 'views':
+        orderByClause = sortOrder === 'asc' ? asc(songs.views) : desc(songs.views);
+        break;
+      case 'likes':
+        orderByClause = sortOrder === 'asc' ? asc(songs.likes) : desc(songs.likes);
+        break;
+      case 'title':
+        orderByClause = sortOrder === 'asc' ? asc(songs.title) : desc(songs.title);
+        break;
+      case 'artist':
+        orderByClause = sortOrder === 'asc' ? asc(songs.artist) : desc(songs.artist);
+        break;
+      default:
+        orderByClause = sortOrder === 'asc' ? asc(songs.createdAt) : desc(songs.createdAt);
+    }
 
     // Get total count
     const [{ total }] = await db
@@ -232,14 +261,26 @@ export class SongService {
       .from(songs)
       .leftJoin(users, eq(songs.submittedBy, users.id))
       .where(whereConditions)
-      .orderBy(orderBy)
+      .orderBy(orderByClause)
       .limit(limit)
       .offset(offset);
 
     const totalPages = Math.ceil(total / limit);
 
+    // Transform data to handle null-to-undefined conversion
+    const transformedData: SongWithUser[] = songsData
+      .filter(song => song.submittedByUser !== null)
+      .map(song => ({
+        ...song,
+        submittedByUser: {
+          id: song.submittedByUser!.id,
+          name: song.submittedByUser!.name,
+          image: song.submittedByUser!.image || undefined,
+        },
+      }));
+
     return {
-      data: songsData,
+      data: transformedData,
       pagination: {
         page,
         limit,
@@ -366,7 +407,7 @@ export class SongService {
 
   // Get trending songs
   async getTrendingSongs(limit: number = 10): Promise<SongWithUser[]> {
-    return db
+    const songsData = await db
       .select({
         id: songs.id,
         title: songs.title,
@@ -400,6 +441,18 @@ export class SongService {
       .where(eq(songs.isApproved, true))
       .orderBy(desc(sql`${songs.views} + ${songs.likes} * 2 + ${songs.annotationsCount} * 3`))
       .limit(limit);
+
+    // Transform data to handle null-to-undefined conversion
+    return songsData
+      .filter(song => song.submittedByUser !== null)
+      .map(song => ({
+        ...song,
+        submittedByUser: {
+          id: song.submittedByUser!.id,
+          name: song.submittedByUser!.name,
+          image: song.submittedByUser!.image || undefined,
+        },
+      }));
   }
 
   // Helper methods
@@ -435,6 +488,104 @@ export class SongService {
         updatedAt: new Date(),
       })
       .where(eq(songs.id, songId));
+  }
+
+  // Toggle like on song
+  async toggleLike(songId: string, userId: string): Promise<{ liked: boolean; totalLikes: number }> {
+    // Check if user already liked this song
+    const [existingLike] = await db
+      .select()
+      .from(likes)
+      .where(and(
+        eq(likes.songId, songId),
+        eq(likes.userId, userId)
+      ));
+
+    if (existingLike) {
+      // Remove like
+      await db
+        .delete(likes)
+        .where(and(
+          eq(likes.songId, songId),
+          eq(likes.userId, userId)
+        ));
+      
+      // Decrement song likes count
+      await db
+        .update(songs)
+        .set({
+          likes: sql`${songs.likes} - 1`,
+          updatedAt: new Date(),
+        })
+        .where(eq(songs.id, songId));
+
+      // Get updated count
+      const [song] = await db
+        .select({ likes: songs.likes })
+        .from(songs)
+        .where(eq(songs.id, songId));
+
+      return { liked: false, totalLikes: song.likes };
+    } else {
+      // Add like
+      await db
+        .insert(likes)
+        .values({
+          songId,
+          userId,
+        });
+      
+      // Increment song likes count
+      await db
+        .update(songs)
+        .set({
+          likes: sql`${songs.likes} + 1`,
+          updatedAt: new Date(),
+        })
+        .where(eq(songs.id, songId));
+
+      // Get updated count
+      const [song] = await db
+        .select({ likes: songs.likes })
+        .from(songs)
+        .where(eq(songs.id, songId));
+
+      return { liked: true, totalLikes: song.likes };
+    }
+  }
+
+  // Toggle favorite on song
+  async toggleFavorite(songId: string, userId: string): Promise<{ favorited: boolean }> {
+    // Check if user already favorited this song
+    const [existingFavorite] = await db
+      .select()
+      .from(userFavorites)
+      .where(and(
+        eq(userFavorites.songId, songId),
+        eq(userFavorites.userId, userId)
+      ));
+
+    if (existingFavorite) {
+      // Remove favorite
+      await db
+        .delete(userFavorites)
+        .where(and(
+          eq(userFavorites.songId, songId),
+          eq(userFavorites.userId, userId)
+        ));
+
+      return { favorited: false };
+    } else {
+      // Add favorite
+      await db
+        .insert(userFavorites)
+        .values({
+          songId,
+          userId,
+        });
+
+      return { favorited: true };
+    }
   }
 
   private async updateUserStats(userId: string, field: 'lyrics_submitted' | 'annotations_count', increment: number): Promise<void> {

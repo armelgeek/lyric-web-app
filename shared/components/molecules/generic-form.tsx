@@ -35,7 +35,7 @@ export const GenericForm = <T extends Record<string, any>>({
         return (
           <ControlledTextInput
             key={field.name}
-            name={field.name}
+            name={field.name as any}
             label={field.label}
             placeholder={field.placeholder}
             control={form.control}
@@ -45,7 +45,7 @@ export const GenericForm = <T extends Record<string, any>>({
         return (
           <ControlledTextareaInput
             key={field.name}
-            name={field.name}
+            name={field.name as any}
             label={field.label}
             placeholder={field.placeholder}
             control={form.control}
@@ -56,7 +56,7 @@ export const GenericForm = <T extends Record<string, any>>({
           <ControlledSwitch
             key={field.name}
             control={form.control}
-            name={field.name}
+            name={field.name as any}
             label={field.label}
             activeValue={field.activeValue}
             inactiveValue={field.inactiveValue}
@@ -67,7 +67,7 @@ export const GenericForm = <T extends Record<string, any>>({
           <ControlledUpload
             key={field.name}
             control={form.control}
-            name={field.name}
+            name={field.name as any}
             label={field.label}
             description={field.description}
           />

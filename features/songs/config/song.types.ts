@@ -23,9 +23,9 @@ export interface Song {
   id: string;
   title: string;
   artist: string;
-  album?: string;
-  releaseDate?: Date;
-  genre?: string;
+  album?: string | null;
+  releaseDate?: Date | null;
+  genre?: string | null;
   lyrics: string;
   submittedBy: string;
   views: number;
@@ -33,12 +33,12 @@ export interface Song {
   annotationsCount: number;
   commentsCount: number;
   isApproved: boolean;
-  approvedBy?: string;
-  approvedAt?: Date;
+  approvedBy?: string | null;
+  approvedAt?: Date | null;
   slug: string;
-  spotifyUrl?: string;
-  youtubeUrl?: string;
-  appleMusicUrl?: string;
+  spotifyUrl?: string | null;
+  youtubeUrl?: string | null;
+  appleMusicUrl?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -55,8 +55,8 @@ export interface Annotation {
   downvotes: number;
   commentsCount: number;
   isApproved: boolean;
-  approvedBy?: string;
-  approvedAt?: Date;
+  approvedBy?: string | null;
+  approvedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -64,9 +64,9 @@ export interface Annotation {
 export interface Comment {
   id: string;
   userId: string;
-  songId?: string;
-  annotationId?: string;
-  parentId?: string;
+  songId?: string | null;
+  annotationId?: string | null;
+  parentId?: string | null;
   content: string;
   likes: number;
   isApproved: boolean;
@@ -78,7 +78,7 @@ export interface UserProfile {
   id: string;
   userId: string;
   role: 'fan' | 'contributor' | 'moderator' | 'artist' | 'admin';
-  bio?: string;
+  bio?: string | null;
   reputation: number;
   followersCount: number;
   followingCount: number;
@@ -148,7 +148,7 @@ export interface SongWithUser extends Song {
 }
 
 export interface SongWithDetails extends SongWithUser {
-  annotations: Annotation[];
+  annotations: AnnotationWithUser[];
   comments: Comment[];
   isLikedByUser?: boolean;
   isFavoriteByUser?: boolean;

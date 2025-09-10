@@ -36,7 +36,7 @@ export function ControllerCustomSelect<T extends FieldValues>({
   });
 
   const toggleOption = (option: string) => {
-    const currentOptions = Array.isArray(field.value) ? field.value : [];
+    const currentOptions = Array.isArray(field.value) ? field.value as string[] : [];
     const newOptions = currentOptions.includes(option)
       ? currentOptions.filter((o: string) => o !== option)
       : [...currentOptions, option];
