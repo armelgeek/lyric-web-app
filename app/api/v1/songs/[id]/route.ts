@@ -8,13 +8,14 @@ const songService = new SongService();
 // GET /api/v1/songs/[id] - Get song by ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     const session = await auth.api.getSession({ headers: request.headers });
     const userId = session?.user?.id;
 
-    const song = await songService.getSongById(params.id, userId);
+    const song = await songService.getSongById(id, userId);
 
     if (!song) {
       return NextResponse.json(
@@ -42,8 +43,9 @@ export async function GET(
 // PUT /api/v1/songs/[id] - Update song
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     const session = await auth.api.getSession({ headers: request.headers });
     
@@ -57,7 +59,7 @@ export async function PUT(
     const body = await request.json();
     const validatedData = updateSongSchema.parse(body);
     
-    const song = await songService.updateSong(params.id, validatedData, session.user.id);
+    const song = await songService.updateSong(id, validatedData, session.user.id);
 
     if (!song) {
       return NextResponse.json(
@@ -94,8 +96,9 @@ export async function PUT(
 // DELETE /api/v1/songs/[id] - Delete song
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     const session = await auth.api.getSession({ headers: request.headers });
     
@@ -106,7 +109,7 @@ export async function DELETE(
       );
     }
 
-    const success = await songService.deleteSong(params.id, session.user.id);
+    const success = await songService.deleteSong(id, session.user.id);
 
     if (!success) {
       return NextResponse.json(

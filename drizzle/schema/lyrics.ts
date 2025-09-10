@@ -119,7 +119,7 @@ export const annotations = pgTable('annotations', {
 }));
 
 // Comments table (for songs and annotations)
-export const comments = pgTable('comments', {
+export const comments: any = pgTable('comments', {
   id: text('id')
     .primaryKey()
     .default(sql`gen_random_uuid()`),
@@ -128,7 +128,7 @@ export const comments = pgTable('comments', {
     .references(() => users.id),
   songId: text('song_id').references(() => songs.id, { onDelete: 'cascade' }),
   annotationId: text('annotation_id').references(() => annotations.id, { onDelete: 'cascade' }),
-  parentId: text('parent_id').references(() => comments.id), // For replies
+  parentId: text('parent_id'), // We'll fix this reference after
   content: text('content').notNull(),
   likes: integer('likes').notNull().default(0),
   isApproved: boolean('is_approved').notNull().default(true),

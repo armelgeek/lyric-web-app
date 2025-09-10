@@ -19,7 +19,7 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
   
   return (
     <SidebarProvider defaultOpen={defaultOpen}>
-      <AppSidebar session={session.session}/>
+      <AppSidebar session={session}/>
       <SidebarInset>
       <Header />
       <div className='flex flex-col flex-1 space-y-4 px-4 py-4'>
